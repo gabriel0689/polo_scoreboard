@@ -71,8 +71,8 @@ You must configure TFT_eSPI for the LILYGO T-Display S3:
    - Core Debug Level: None
 
 ### 4. Upload the Code
-1. Open the `NEW_TDISPLAY_S3_UART.ino` file
-2. Connect the board via USB
+1. Open the `POLO_SCOREBOARD.ino` file
+2. Connect the board via USB while putting the device into bootloader mode
 3. Compile and upload the sketch
 
 ## Usage
