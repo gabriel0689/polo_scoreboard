@@ -109,9 +109,6 @@ The device expects data from the scoreboard in the format:
 - Display: 1.9" 170×320 LCD with 8-bit color depth
 - USB-C connector for power and programming
 - **USB Serial Communication**: Uses pins 19 (RX) and 20 (TX) which are connected to the built-in USB-C port
-- Serial2 uses GPIO18 for RX and is available for external UART connections
-- GPIO pins available for external connections
-- Battery connector for portable use
 
 ## License
 This project is licensed under a Creative Commons Attribution-NonCommercial 4.0 International License. CC BY-NC
