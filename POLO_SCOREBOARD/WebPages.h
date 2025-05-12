@@ -10,6 +10,7 @@ const char INDEX_HTML[] PROGMEM = R"(
 <head>
     <title>Scoreboard Display</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
     <style>
         body { 
             font-family: Arial, sans-serif; 
@@ -43,8 +44,10 @@ const char INDEX_HTML[] PROGMEM = R"(
             font-size: 8vw;
             font-weight: bold;
             margin-bottom: 20px;
-            font-family: 'Courier New', monospace;
+            font-family: 'Orbitron', monospace;
             color: #ff0;
+            letter-spacing: 0.05em;
+            text-shadow: 0 0 10px rgba(255, 255, 0, 0.5);
         }
         .score-table {
             border-collapse: collapse;
@@ -63,16 +66,24 @@ const char INDEX_HTML[] PROGMEM = R"(
             padding: 20px;
             text-align: center;
             font-weight: bold;
-            font-family: 'Arial Black', sans-serif;
+            font-family: 'Orbitron', sans-serif;
+            letter-spacing: 0.05em;
         }
-        .home { color: #0cf; }
-        .away { color: #f80; }
+        .home { 
+            color: #0cf;
+            text-shadow: 0 0 10px rgba(0, 204, 255, 0.5);
+        }
+        .away { 
+            color: #f80; 
+            text-shadow: 0 0 10px rgba(255, 136, 0, 0.5);
+        }
         .status {
             position: fixed;
             bottom: 10px;
             right: 10px;
             color: #888;
             font-size: 12px;
+            cursor: pointer;
         }
         .disconnected { color: #f44; }
     </style>
@@ -101,40 +112,95 @@ const char INDEX_HTML[] PROGMEM = R"(
     <div id="status" class="status">Connecting...</div>
 
     <script>
-        var ws = new WebSocket('ws://' + location.hostname + '/ws');
-        var timeDisplay = document.getElementById('time');
-        var homeDisplay = document.getElementById('home');
-        var awayDisplay = document.getElementById('away');
-        var statusDisplay = document.getElementById('status');
+        var wsUrl = `ws://` + location.hostname + `/ws`;
+        var timeDisplay = document.getElementById(`time`);
+        var homeDisplay = document.getElementById(`home`);
+        var awayDisplay = document.getElementById(`away`);
+        var statusDisplay = document.getElementById(`status`);
+        var ws;
+        var reconnectAttempts = 0;
+        var maxReconnectAttempts = 20; // Try reconnecting ~10 minutes (20 * varies from 5s to 30s)
+        var isConnecting = false;
         
-        ws.onopen = function() {
-            statusDisplay.textContent = "Connected";
-            statusDisplay.classList.remove('disconnected');
-        };
+        function connectWebSocket() {
+            if (isConnecting) return; // Prevent multiple connection attempts
+            
+            isConnecting = true;
+            statusDisplay.textContent = `Connecting...`;
+            
+            // Create new WebSocket connection
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = function() {
+                isConnecting = false;
+                reconnectAttempts = 0;
+                statusDisplay.textContent = `Connected`;
+                statusDisplay.classList.remove(`disconnected`);
+            };
+            
+            ws.onclose = function() {
+                isConnecting = false;
+                statusDisplay.textContent = `Disconnected - Retrying in ` + getReconnectDelay()/1000 + `s`;
+                statusDisplay.classList.add(`disconnected`);
+                
+                // Schedule reconnection attempt
+                setTimeout(reconnect, getReconnectDelay());
+            };
+            
+            ws.onmessage = function(event) {
+                try {
+                    var data = JSON.parse(event.data);
+                    if (data.time) timeDisplay.textContent = data.time;
+                    if (data.home) homeDisplay.textContent = data.home;
+                    if (data.away) awayDisplay.textContent = data.away;
+                } catch (e) {
+                    console.error(`Error parsing data:`, e);
+                }
+            };
+            
+            ws.onerror = function() {
+                isConnecting = false;
+                statusDisplay.textContent = `Connection Error`;
+                statusDisplay.classList.add(`disconnected`);
+                // Error is followed by onclose, which will handle reconnection
+            };
+        }
         
-        ws.onclose = function() {
-            statusDisplay.textContent = "Disconnected";
-            statusDisplay.classList.add('disconnected');
-            setTimeout(function() {
-                window.location.reload();
-            }, 5000);
-        };
-        
-        ws.onmessage = function(event) {
-            try {
-                var data = JSON.parse(event.data);
-                if (data.time) timeDisplay.textContent = data.time;
-                if (data.home) homeDisplay.textContent = data.home;
-                if (data.away) awayDisplay.textContent = data.away;
-            } catch (e) {
-                console.error("Error parsing data:", e);
+        function reconnect() {
+            reconnectAttempts++;
+            
+            // Update status with attempt information
+            var delay = getReconnectDelay()/1000;
+            if (reconnectAttempts <= maxReconnectAttempts || maxReconnectAttempts <= 0) {
+                statusDisplay.textContent = `Reconnecting (Attempt ` + reconnectAttempts + `)`;
+                connectWebSocket();
+            } else {
+                statusDisplay.textContent = `Reconnection failed after ` + reconnectAttempts + ` attempts. Click to try again.`;
             }
-        };
+        }
         
-        ws.onerror = function() {
-            statusDisplay.textContent = "Connection Error";
-            statusDisplay.classList.add('disconnected');
-        };
+        function getReconnectDelay() {
+            // First few attempts faster, then slow down to 30 seconds
+            if (reconnectAttempts < 3) {
+                return 5000; // 5 seconds
+            } else if (reconnectAttempts < 5) {
+                return 10000; // 10 seconds
+            } else {
+                return 30000; // 30 seconds
+            }
+        }
+        
+        // Initialize connection
+        connectWebSocket();
+        
+        // Add a manual reconnect option
+        statusDisplay.addEventListener(`click`, function() {
+            if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+                statusDisplay.textContent = `Manual reconnect...`;
+                reconnectAttempts = 0; // Reset counter for manual reconnect
+                connectWebSocket();
+            }
+        });
     </script>
 </body>
 </html>
@@ -166,6 +232,7 @@ const char DEBUG_HTML[] PROGMEM = R"(
         .score { color: #00ffff; font-weight: bold; font-size: 1.2em; }
         .error { color: #ff4444; }
         .success { color: #4CAF50; }
+        .info { color: #00ffff; }
         button { 
             background: #333; 
             color: #fff; 
@@ -174,6 +241,13 @@ const char DEBUG_HTML[] PROGMEM = R"(
             cursor: pointer;
         }
         button:hover { background: #444; }
+        #reconnect {
+            margin-left: 10px;
+            background: #4CAF50;
+        }
+        #reconnect:hover {
+            background: #3d8b3d;
+        }
     </style>
 </head>
 <body>
@@ -186,64 +260,118 @@ const char DEBUG_HTML[] PROGMEM = R"(
     <div class="controls">
         <button onclick='clearData()'>Clear</button>
         <label><input type="checkbox" id="autoscroll" checked> Auto-scroll</label>
+        <button id="reconnect" onclick='manualReconnect()'>Reconnect</button>
     </div>
     <div id="serialData"></div>
     <script>
-        var ws = new WebSocket('ws://' + location.hostname + '/ws');
-        var serialDiv = document.getElementById('serialData');
-        var autoscroll = document.getElementById('autoscroll');
+        var wsUrl = `ws://` + location.hostname + `/ws`;
+        var serialDiv = document.getElementById(`serialData`);
+        var autoscroll = document.getElementById(`autoscroll`);
+        var ws;
+        var reconnectAttempts = 0;
+        var isConnecting = false;
+        var reconnectTimer = null;
         
-        ws.onopen = function() {
-            appendMessage('WebSocket Connected', 'success');
-            console.log('WebSocket Connected');
-        };
-        
-        ws.onclose = function() {
-            appendMessage('WebSocket Disconnected', 'error');
-            console.log('WebSocket Disconnected');
-        };
-        
-        ws.onmessage = function(event) {
-            console.log('Message received:', event);
+        function connectWebSocket() {
+            if (isConnecting) return;
             
-            if (event.data instanceof Blob) {
-                var reader = new FileReader();
-                reader.onload = function() {
-                    var data = new Uint8Array(reader.result);
-                    console.log('Binary data:', Array.from(data));
-                    
-                    var minutes = data[0];
-                    var seconds = data[1];
-                    var homeScore = data[2];
-                    var awayScore = data[3];
-                    
-                    var scoreText = (minutes < 10 ? '0' : '') + minutes + ':' +
-                                  (seconds < 10 ? '0' : '') + seconds + ' ' +
-                                  'Home ' + homeScore + ' - ' + 
-                                  'Away ' + awayScore;
-                    
-                    appendMessage(scoreText, 'score');
-                };
-                reader.onerror = function(error) {
-                    console.error('FileReader error:', error);
-                    appendMessage('Error reading data', 'error');
-                };
-                reader.readAsArrayBuffer(event.data);
-            } else {
-                appendMessage(event.data, 'white');
-            }
-        };
+            isConnecting = true;
+            appendMessage(`Connecting to WebSocket...`, `info`);
+            
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = function() {
+                isConnecting = false;
+                reconnectAttempts = 0;
+                appendMessage(`WebSocket Connected`, `success`);
+                if (reconnectTimer) {
+                    clearTimeout(reconnectTimer);
+                    reconnectTimer = null;
+                }
+            };
+            
+            ws.onclose = function() {
+                isConnecting = false;
+                var delay = getReconnectDelay();
+                appendMessage(`WebSocket Disconnected - Retrying in ` + delay/1000 + `s`, `error`);
+                
+                // Schedule reconnection
+                reconnectTimer = setTimeout(reconnect, delay);
+            };
+            
+            ws.onmessage = function(event) {
+                console.log(`Message received:`, event);
+                
+                if (event.data instanceof Blob) {
+                    var reader = new FileReader();
+                    reader.onload = function() {
+                        var data = new Uint8Array(reader.result);
+                        console.log(`Binary data:`, Array.from(data));
+                        
+                        var minutes = data[0];
+                        var seconds = data[1];
+                        var homeScore = data[2];
+                        var awayScore = data[3];
+                        
+                        var scoreText = (minutes < 10 ? `0` : ``) + minutes + `:` +
+                                      (seconds < 10 ? `0` : ``) + seconds + ` ` +
+                                      `Home ` + homeScore + ` - ` + 
+                                      `Away ` + awayScore;
+                        
+                        appendMessage(scoreText, `score`);
+                    };
+                    reader.onerror = function(error) {
+                        console.error(`FileReader error:`, error);
+                        appendMessage(`Error reading data`, `error`);
+                    };
+                    reader.readAsArrayBuffer(event.data);
+                } else {
+                    appendMessage(event.data, `white`);
+                }
+            };
+            
+            ws.onerror = function(error) {
+                isConnecting = false;
+                appendMessage(`Connection Error`, `error`);
+            };
+        }
         
-        ws.onerror = function(error) {
-            console.error('WebSocket Error:', error);
-            appendMessage('Connection Error', 'error');
-        };
+        function reconnect() {
+            reconnectAttempts++;
+            appendMessage(`Reconnecting (Attempt ` + reconnectAttempts + `)`, `info`);
+            connectWebSocket();
+        }
+        
+        function manualReconnect() {
+            if (reconnectTimer) {
+                clearTimeout(reconnectTimer);
+                reconnectTimer = null;
+            }
+            
+            if (ws) {
+                try {
+                    ws.close();
+                } catch (e) {
+                    console.error(`Error closing socket:`, e);
+                }
+            }
+            
+            reconnectAttempts = 0;
+            appendMessage(`Manual reconnection...`, `info`);
+            connectWebSocket();
+        }
+        
+        function getReconnectDelay() {
+            if (reconnectAttempts < 3) return 5000;      // 5 seconds
+            else if (reconnectAttempts < 5) return 10000; // 10 seconds
+            else return 30000;                            // 30 seconds
+        }
         
         function appendMessage(message, className) {
             var timestamp = new Date().toLocaleTimeString();
-            var div = document.createElement('div');
+            var div = document.createElement(`div`);
             div.className = className;
-            div.textContent = '[' + timestamp + '] ' + message;
+            div.textContent = `[` + timestamp + `] ` + message;
             serialDiv.appendChild(div);
             
             if (autoscroll.checked) {
@@ -252,8 +380,11 @@ const char DEBUG_HTML[] PROGMEM = R"(
         }
         
         function clearData() {
-            serialDiv.innerHTML = '';
+            serialDiv.innerHTML = ``;
         }
+        
+        // Initialize connection
+        connectWebSocket();
     </script>
 </body>
 </html>
@@ -289,6 +420,49 @@ const char SETTINGS_HTML[] PROGMEM = R"(
             padding: 5px;
             border: 1px solid #555;
         }
+        .danger-zone {
+            margin-top: 40px;
+            border: 1px solid #f44;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .danger-zone h3 {
+            color: #f44;
+            margin-top: 0;
+        }
+        .danger-button {
+            background: #f44;
+            color: #fff;
+            border: none;
+            padding: 8px 16px;
+            cursor: pointer;
+            margin-top: 10px;
+            position: relative;
+            overflow: hidden;
+        }
+        .danger-button:hover {
+            background: #e33;
+        }
+        .button-progress {
+            position: absolute;
+            left: 0;
+            bottom: 0;
+            height: 4px;
+            background: #fff;
+            width: 0%;
+            transition: width 0.1s linear;
+        }
+        .button-text {
+            position: relative;
+            z-index: 2;
+        }
+        #reconnect {
+            background: #4CAF50;
+            margin-left: 10px;
+        }
+        #reconnect:hover {
+            background: #3d8b3d;
+        }
     </style>
 </head>
 <body>
@@ -308,39 +482,172 @@ const char SETTINGS_HTML[] PROGMEM = R"(
             </select>
         </div>
         <button type="submit">Save Settings</button>
+        <button type="button" id="reconnect" onclick='manualReconnect()'>Reconnect</button>
     </form>
+    
+    <div class='danger-zone'>
+        <h3>Danger Zone</h3>
+        <p>This will erase all WiFi configuration and restart the device. You will need to reconnect through the setup portal.</p>
+        <p><strong>Press and hold for 10 seconds to reset WiFi</strong></p>
+        <button type="button" id="resetWifiBtn" class="danger-button">
+            <span class="button-text">Reset WiFi Configuration</span>
+            <span class="button-progress" id="resetProgress"></span>
+        </button>
+    </div>
+    
     <div id="status"></div>
-    <script>
-        var ws = new WebSocket('ws://' + location.hostname + '/ws');
-        var statusDiv = document.getElementById('status');
+        <script>
+        var wsUrl = `ws://` + location.hostname + `/ws`;
+        var statusDiv = document.getElementById(`status`);
+        var ws;
+        var reconnectAttempts = 0;
+        var isConnecting = false;
+        var reconnectTimer = null;
         
-        ws.onopen = function() {
-            updateStatus('Connected', 'success');
-        };
+        function connectWebSocket() {
+            if (isConnecting) return;
+            
+            isConnecting = true;
+            updateStatus(`Connecting...`, `info`);
+            
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = function() {
+                isConnecting = false;
+                reconnectAttempts = 0;
+                updateStatus(`Connected`, `success`);
+                if (reconnectTimer) {
+                    clearTimeout(reconnectTimer);
+                    reconnectTimer = null;
+                }
+            };
+            
+            ws.onclose = function() {
+                isConnecting = false;
+                var delay = getReconnectDelay();
+                updateStatus(`Disconnected - Retrying in ` + delay/1000 + `s`, `error`);
+                
+                // Schedule reconnection
+                reconnectTimer = setTimeout(reconnect, delay);
+            };
+            
+            ws.onmessage = function(event) {
+                updateStatus(`Settings updated: ` + event.data, `info`);
+            };
+            
+            ws.onerror = function() {
+                isConnecting = false;
+                updateStatus(`Connection Error`, `error`);
+            };
+        }
         
-        ws.onclose = function() {
-            updateStatus('Disconnected', 'error');
-        };
+        function reconnect() {
+            reconnectAttempts++;
+            updateStatus(`Reconnecting (Attempt ` + reconnectAttempts + `)`, `info`);
+            connectWebSocket();
+        }
         
-        ws.onmessage = function(event) {
-            updateStatus('Settings updated: ' + event.data, 'info');
-        };
+        function manualReconnect() {
+            if (reconnectTimer) {
+                clearTimeout(reconnectTimer);
+                reconnectTimer = null;
+            }
+            
+            if (ws) {
+                try {
+                    ws.close();
+                } catch (e) {
+                    console.error(`Error closing socket:`, e);
+                }
+            }
+            
+            reconnectAttempts = 0;
+            updateStatus(`Manual reconnection...`, `info`);
+            connectWebSocket();
+            
+            return false; // Prevent form submission
+        }
+        
+        function getReconnectDelay() {
+            if (reconnectAttempts < 3) return 5000;      // 5 seconds
+            else if (reconnectAttempts < 5) return 10000; // 10 seconds
+            else return 30000;                            // 30 seconds
+        }
         
         function updateStatus(message, className) {
-            var div = document.createElement('div');
+            var div = document.createElement(`div`);
             div.className = className;
             div.textContent = message;
-            statusDiv.innerHTML = '';
+            statusDiv.innerHTML = ``;
             statusDiv.appendChild(div);
         }
         
-        document.getElementById('settingsForm').onsubmit = function(e) {
+        document.getElementById(`settingsForm`).onsubmit = function(e) {
             e.preventDefault();
             var data = {
-                baudRate: document.getElementById('baudRate').value
+                baudRate: document.getElementById(`baudRate`).value
             };
             ws.send(JSON.stringify(data));
         };
+        
+        // Long press implementation for reset button
+        var resetBtn = document.getElementById(`resetWifiBtn`);
+        var resetProgress = document.getElementById(`resetProgress`);
+        var pressTimer = null;
+        var pressStartTime = 0;
+        var requiredPressTime = 10000; // 10 seconds in milliseconds
+        
+        resetBtn.addEventListener(`mousedown`, startPress);
+        resetBtn.addEventListener(`touchstart`, startPress);
+        resetBtn.addEventListener(`mouseup`, endPress);
+        resetBtn.addEventListener(`mouseleave`, endPress);
+        resetBtn.addEventListener(`touchend`, endPress);
+        resetBtn.addEventListener(`touchcancel`, endPress);
+        
+        function startPress(e) {
+            if (e.type === `touchstart`) {
+                e.preventDefault(); // Prevent mousedown from firing too
+            }
+            
+            resetProgress.style.width = `0%`;
+            pressStartTime = Date.now();
+            
+            // Update progress bar every 100ms
+            pressTimer = setInterval(function() {
+                var elapsedTime = Date.now() - pressStartTime;
+                var progressPercent = Math.min(100, (elapsedTime / requiredPressTime) * 100);
+                resetProgress.style.width = progressPercent + `%`;
+                
+                // If weve reached the required time
+                if (elapsedTime >= requiredPressTime) {
+                    clearInterval(pressTimer);
+                    resetProgress.style.width = `100%`;
+                    
+                    // Ask for final confirmation
+                    if (confirm(`WARNING: This will erase all WiFi settings and restart the device. You will need to reconnect through the WiFi setup portal. Continue?`)) {
+                        updateStatus(`Resetting WiFi configuration and restarting...`, `info`);
+                        var data = {
+                            command: `resetWifi`
+                        };
+                        ws.send(JSON.stringify(data));
+                        setTimeout(function() {
+                            window.location.href = `/`;
+                        }, 3000);
+                    } else {
+                        // Reset progress on cancel
+                        resetProgress.style.width = `0%`;
+                    }
+                }
+            }, 100);
+        }
+        
+        function endPress() {
+            clearInterval(pressTimer);
+            resetProgress.style.width = `0%`;
+        }
+        
+        // Initialize connection
+        connectWebSocket();
     </script>
 </body>
 </html>
