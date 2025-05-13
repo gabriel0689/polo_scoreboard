@@ -10,7 +10,7 @@
 
 // External declarations 
 extern WiFiManager wm;
-extern void setupWebSocket(); // Declare this as external
+extern void setupWebSocket(); 
 
 // Function declarations
 bool setupWiFi();
@@ -53,4 +53,4 @@ bool setupWiFi() {
 
 #endif // WIFI_SETUP_H
 
-//todo: none of the fucking text shows up in the display,could be a race condition with the initializing... message .
+//todo: none of the fucking status text shows up in the display  when initializing ,could be a race condition with the initializing... message .

@@ -36,12 +36,6 @@ void setup() {
 
   initDisplay();
   displayMessage("Initializing...");
-
-
-
-  // Only set up WiFi initially - everything else waits
-
-
   buttonHandler.begin();
   buttonHandler.setCallback(handleButtonPress);
 }
@@ -179,8 +173,8 @@ void handleButtonPress(uint8_t button, ButtonPressType type) {
       wm.resetSettings();
       ESP.restart();
     }
-  } else {  // Bottom button (BUTTON_2)
-    
+  } else {  
+    // Bottom button (BUTTON_2)
     if (type == SHORT_PRESS) {
       // Same toggle behavior for bottom button
       if (displayingScoreboard) {
@@ -211,7 +205,6 @@ void handleButtonPress(uint8_t button, ButtonPressType type) {
       wm.resetSettings();
       ESP.restart();
     }
-    // You can also handle VERY_LONG_PRESS for button 2 if needed
   }
 }
 
@@ -284,7 +277,6 @@ void displayWebsiteURL() {
   tft.setTextColor(TFT_CYAN, TFT_BLACK);
   
   // // Get IP address
-  // String ip = WiFi.localIP().toString();
   String url = "http://scoreboard.local";
   
   // Draw the URL
