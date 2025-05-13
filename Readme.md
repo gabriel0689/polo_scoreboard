@@ -94,9 +94,16 @@ The web interface has three pages:
 
 ### Data Protocol
 The device expects data from the scoreboard in the format:
-- First byte: '8' (start marker)
-- Following bytes: time and score data
-- Timeout between messages: 50ms
+
+ �0 T2 12 00 99 01 03 � 
+     ^ ^  ^  ^  ^  ^  ^
+     | |  |  |  |  |  └─ Away score
+     | |  |  |  |  └─── Home score
+     | |  |  |  └────── Milliseconds
+     | |  |  └───────── Seconds
+     | |  └──────────── Minutes
+     | └─────────────── Device status (T/D with a number)
+     └───────────────── Channel
 
 ## Troubleshooting
 - If the display shows "WiFi Failed," try resetting the device and reconnecting
