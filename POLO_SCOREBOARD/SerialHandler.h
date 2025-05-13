@@ -1,5 +1,5 @@
 // raw data structure sample:
-// �� 0 T2 12 00 99 01 03  
+// �0 T2 12 00 99 01 03 � 
 //     ^ ^  ^  ^  ^  ^  ^
 //     | |  |  |  |  |  └─ Away score
 //     | |  |  |  |  └─── Home score
@@ -184,7 +184,6 @@ private:
                       strcmp(scoreData.awayScore, previousData.awayScore) != 0 ||
                       scoreData.channel != previousData.channel;
                       
-        // More permissive - don't require device type change
         
         if (changed && debug) {
             debugWS("Data changed detected");
@@ -216,7 +215,7 @@ private:
             doc["deviceType"] = String(deviceType) + String(deviceNumber);
             doc["channel"] = scoreData.channel;
             doc["isRunning"] = (deviceType == 'T');
-            doc["source"] = "scoreboard"; // Add source to distinguish from test data
+            doc["source"] = "scoreboard";
 
             String jsonString;
             serializeJson(doc, jsonString);
@@ -235,7 +234,7 @@ private:
     }
 
     void processMessage() {
-        // Use the new format-based parsing method
+        // Use format-based parsing method
         parseMessageFormat();
         
         // Only send WebSocket update if data has changed AND is valid
@@ -268,7 +267,7 @@ public:
         Serial1.end();
         delay(100);
         Serial1.begin(9600, SERIAL_8N1, 19, 20);
-        Serial1.setTimeout(50); // Add timeout for reading
+        Serial1.setTimeout(50); 
         
         unsigned long startTime = millis();
         while (!Serial1 && (millis() - startTime < 1000)) {
@@ -437,7 +436,6 @@ public:
             }
         }
         
-        // No need to update previous state here - test data is temporary
     }
 
     bool hasReceivedValidData(unsigned long timeout) {

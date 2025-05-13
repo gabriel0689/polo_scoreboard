@@ -1,7 +1,5 @@
 #ifndef WEB_PAGES_H
 #define WEB_PAGES_H
-//todo, expose baud rate to settings page
-//todo: allow clearing the data in the internal storage from the settings page
 
 // index page with table display
 const char INDEX_HTML[] PROGMEM = R"(
