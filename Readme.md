@@ -94,7 +94,8 @@ The web interface has three pages:
 
 ### Data Protocol
 The device expects data from the scoreboard in the format:
-
+<pre>
+<code>
  �0 T2 12 00 99 01 03 � 
      ^ ^  ^  ^  ^  ^  ^
      | |  |  |  |  |  └─ Away score
@@ -104,7 +105,8 @@ The device expects data from the scoreboard in the format:
      | |  └──────────── Minutes
      | └─────────────── Device status (T/D with a number)
      └───────────────── Channel
-
+</code>
+</pre>
 ## Troubleshooting
 - If the display shows "WiFi Failed," try resetting the device and reconnecting
 - If scores appear incorrect, enable debug mode using `serialHandler.setDebug(true)`
