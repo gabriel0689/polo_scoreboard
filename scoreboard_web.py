@@ -1,3 +1,6 @@
+#tHIS  FILE IS UNRELATED tO THe ESP32 PROJECT
+
+
 #This is a work in progress and is not yet complete.
 # it uses a custom debug cable that converts the UART signal from the scoreboard to USB 
 # the converter used is a  PL2303 PL2303HX USB to UART TTL Cable Module 4p 4 pin RS232 Converter Serial Line dual male connector to connect to the scoreboard port and the usb port on the computer.
