@@ -97,14 +97,14 @@ The device expects data from the scoreboard in the format:
 <pre>
 <code>
  �0 T2 12 00 99 01 03 � 
-     ^ ^  ^  ^  ^  ^  ^
-     | |  |  |  |  |  └─ Away score
-     | |  |  |  |  └─── Home score
-     | |  |  |  └────── Milliseconds
-     | |  |  └───────── Seconds
-     | |  └──────────── Minutes
-     | └─────────────── Device status (T/D with a number)
-     └───────────────── Channel
+  ^ ^  ^  ^  ^  ^  ^
+  | |  |  |  |  |  └─ Away score
+  | |  |  |  |  └─── Home score
+  | |  |  |  └────── Milliseconds
+  | |  |  └───────── Seconds
+  | |  └──────────── Minutes
+  | └─────────────── Device status (T/D with a number)
+  └───────────────── Channel
 </code>
 </pre>
 ## Troubleshooting
