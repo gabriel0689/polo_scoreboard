@@ -7,18 +7,16 @@
 #include "WebSocketSetup.h"
 #include "SerialHandler.h"  
 #include "ButtonHandler.h"
+#include <Preferences.h>
 
 // Initialize components
 TFT_eSPI tft = TFT_eSPI();
 WiFiManager wm;
 SerialHandler serialHandler;
 ButtonHandler buttonHandler;
-
+Preferences preferences;
 
 bool systemInitialized = false;
-bool veryLongPressActive = false;
-unsigned long veryLongPressStartTime = 0;
-const unsigned long VERY_LONG_PRESS_THRESHOLD = 10000; // 10 seconds
 bool displayingScoreboard = false;
 bool displayingWebsiteURL = false;
 unsigned long lastScoreboardUpdate = 0;
@@ -29,10 +27,18 @@ const unsigned long SCOREBOARD_UPDATE_INTERVAL = 5000; // 5 seconds
 void setup() {
   Serial.begin(115200);
   delay(1000);
-  
+
+  // Initialize preferences
+  preferences.begin("scoreboard", false); // false = read/write mode
+  // Load debug setting
+  bool debugMode = preferences.getBool("debugMode", false); // default to false if not set
+  serialHandler.setDebug(debugMode);
+
   initDisplay();
   displayMessage("Initializing...");
-  
+
+
+
   // Only set up WiFi initially - everything else waits
 
 
@@ -67,6 +73,12 @@ void loop() {
     systemInitialized = true;
     displayMessage("System Ready!");
     delay(1000);
+
+        // Show the website URL screen after initialization
+    displayWebsiteURL();
+    displayingWebsiteURL = true;
+
+
     return;
   }
   
@@ -77,11 +89,6 @@ void loop() {
     return;
   }
 
-  static unsigned long lastTestTime = 0;
-  // if (millis() - lastTestTime > 10000) { // Every 10 seconds
-  //   serialHandler.sendTestData();
-  //   lastTestTime = millis();
-  // }
 
   static unsigned long lastUpdateTime = 0;
   static unsigned long lastBaudCheck = 0;
@@ -121,8 +128,7 @@ void loop() {
 
   buttonHandler.update();
 
-  // Set to true during development, false in production
-  serialHandler.setDebug(true);
+
   serialHandler.handleData();
   cleanupWebSocket();
   delay(10);
@@ -209,7 +215,7 @@ void handleButtonPress(uint8_t button, ButtonPressType type) {
   }
 }
 
-// Add a new function to check for very long press
+
 void displayScoreData() {
   // Clear screen
   tft.fillScreen(TFT_BLACK);

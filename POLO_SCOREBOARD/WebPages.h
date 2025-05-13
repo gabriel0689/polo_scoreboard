@@ -22,13 +22,21 @@ const char INDEX_HTML[] PROGMEM = R"(
             flex-direction: column;
             height: 100vh;
         }
+        .footer {
+            text-align: center;
+            padding: 10px;
+            margin-top: 20px;
+            font-size: 0.8em;
+            color: #777;
+            border-top: 1px solid #333;
+        }    
         .nav { 
             background: #333;
             padding: 10px 20px;
         }
         .nav a { 
             margin-right: 15px; 
-            color: #4CAF50; 
+            color: #fff; 
             text-decoration: none;
             font-weight: bold;
         }
@@ -47,7 +55,7 @@ const char INDEX_HTML[] PROGMEM = R"(
             font-family: 'Orbitron', monospace;
             color: #ff0;
             letter-spacing: 0.05em;
-            text-shadow: 0 0 10px rgba(255, 255, 0, 0.5);
+            // text-shadow: 0 0 10px rgba(255, 255, 0, 0.5);
         }
         .score-table {
             border-collapse: collapse;
@@ -71,11 +79,11 @@ const char INDEX_HTML[] PROGMEM = R"(
         }
         .home { 
             color: #0cf;
-            text-shadow: 0 0 10px rgba(0, 204, 255, 0.5);
+            // text-shadow: 0 0 10px rgba(0, 204, 255, 0.5);
         }
         .away { 
             color: #f80; 
-            text-shadow: 0 0 10px rgba(255, 136, 0, 0.5);
+            // text-shadow: 0 0 10px rgba(255, 136, 0, 0.5);
         }
         .status {
             position: fixed;
@@ -110,8 +118,11 @@ const char INDEX_HTML[] PROGMEM = R"(
     </div>
     
     <div id="status" class="status">Connecting...</div>
+    <div class="footer">Made with love by Face Cage CO. <span id="currentYear"></span></div>
 
     <script>
+        document.getElementById('currentYear').textContent = new Date().getFullYear();
+
         var wsUrl = `ws://` + location.hostname + `/ws`;
         var timeDisplay = document.getElementById(`time`);
         var homeDisplay = document.getElementById(`home`);
@@ -136,6 +147,9 @@ const char INDEX_HTML[] PROGMEM = R"(
                 reconnectAttempts = 0;
                 statusDisplay.textContent = `Connected`;
                 statusDisplay.classList.remove(`disconnected`);
+
+                // Request current data immediately after connection
+                ws.send(JSON.stringify({command: "getCurrentData"}));
             };
             
             ws.onclose = function() {
@@ -227,7 +241,7 @@ const char DEBUG_HTML[] PROGMEM = R"(
             color: #0f0;
         }
         .nav { margin-bottom: 20px; }
-        .nav a { margin-right: 10px; color: #4CAF50; text-decoration: none; }
+        .nav a { margin-right: 10px; color: #fff; text-decoration: none; }
         .controls { margin: 10px 0; }
         .score { color: #00ffff; font-weight: bold; font-size: 1.2em; }
         .error { color: #ff4444; }
@@ -400,7 +414,7 @@ const char SETTINGS_HTML[] PROGMEM = R"(
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; background: #1a1a1a; color: #fff; }
         .nav { margin-bottom: 20px; }
-        .nav a { margin-right: 10px; color: #4CAF50; text-decoration: none; }
+        .nav a { margin-right: 10px; color: #fff; text-decoration: none; }
         .form-group { margin-bottom: 15px; }
         label { display: block; margin-bottom: 5px; }
         .success { color: #4CAF50; }
@@ -463,6 +477,46 @@ const char SETTINGS_HTML[] PROGMEM = R"(
         #reconnect:hover {
             background: #3d8b3d;
         }
+                    .toggle-label {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            margin-bottom: 5px;
+        }
+        input[type="checkbox"] {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 50px;
+            height: 24px;
+            background: #333;
+            border-radius: 12px;
+            position: relative;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        input[type="checkbox"]::before {
+            content: "";
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            top: 2px;
+            left: 2px;
+            background: #777;
+            transition: all 0.3s;
+        }
+        input[type="checkbox"]:checked {
+            background: #4CAF50;
+        }
+        input[type="checkbox"]:checked::before {
+            left: 28px;
+            background: white;
+        }
+        .setting-description {
+            color: #999;
+            font-size: 0.9em;
+            margin: 3px 0 15px 0;
+        }
     </style>
 </head>
 <body>
@@ -473,14 +527,15 @@ const char SETTINGS_HTML[] PROGMEM = R"(
     </div>
     <h1>Settings</h1>
     <form id="settingsForm">
+
         <div class="form-group">
-            <label for="baudRate">Baud Rate:</label>
-            <select id="baudRate" name="baudRate">
-                <option value="9600">9600</option>
-                <option value="115200">115200</option>
-                <option value="230400">230400</option>
-            </select>
+            <label class="toggle-label">
+                <input type="checkbox" id="debugMode" name="debugMode">
+                <span class="toggle-text">Debug Mode</span>
+            </label>
+            <p class="setting-description">When enabled, logs detailed debug information</p>
         </div>
+
         <button type="submit">Save Settings</button>
         <button type="button" id="reconnect" onclick='manualReconnect()'>Reconnect</button>
     </form>
@@ -520,6 +575,9 @@ const char SETTINGS_HTML[] PROGMEM = R"(
                     clearTimeout(reconnectTimer);
                     reconnectTimer = null;
                 }
+                
+                // Request current settings to populate the form
+                ws.send(JSON.stringify({command: "getSettings"}));
             };
             
             ws.onclose = function() {
@@ -532,7 +590,21 @@ const char SETTINGS_HTML[] PROGMEM = R"(
             };
             
             ws.onmessage = function(event) {
-                updateStatus(`Settings updated: ` + event.data, `info`);
+                try {
+                    var data = JSON.parse(event.data);
+                    if (data.settings) {
+                        // Update form with current settings
+                        if (data.settings.hasOwnProperty('debugMode')) {
+                            document.getElementById('debugMode').checked = data.settings.debugMode;
+                        }
+
+                        updateStatus(`Settings loaded`, `success`);
+                    } else {
+                        updateStatus(`Settings updated: ` + event.data, `info`);
+                    }
+                } catch (e) {
+                    updateStatus(`Settings updated: ` + event.data, `info`);
+                }
             };
             
             ws.onerror = function() {
@@ -585,7 +657,7 @@ const char SETTINGS_HTML[] PROGMEM = R"(
         document.getElementById(`settingsForm`).onsubmit = function(e) {
             e.preventDefault();
             var data = {
-                baudRate: document.getElementById(`baudRate`).value
+                debugMode: document.getElementById(`debugMode`).checked
             };
             ws.send(JSON.stringify(data));
         };
