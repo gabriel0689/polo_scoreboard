@@ -78,12 +78,15 @@ You must configure TFT_eSPI for the LILYGO T-Display S3:
 ## Usage
 
 ### First Boot
-1. On first boot, the device will create a WiFi access point named "LilyGo-TDisplay" pw "12345678"
-2. Connect to this network with your phone or computer
-3. A configuration portal should open automatically (or navigate to 192.168.4.1)
-4. Select your home WiFi network and enter the password
-5. After successful connection, the device will display its IP address on the screen
-
+1. On first boot, the device will create a WiFi access point with a unique name in the format "FC-Scoreboard-XXXX"
+2. The TFT display will show:
+   - The exact access point name to connect to
+   - The password: "12345678"
+   - Instructions to visit 192.168.4.1 in your browser
+3. Connect to this network with your phone or computer
+4. A configuration portal should open automatically (or navigate to 192.168.4.1 manually)
+5. Select your home WiFi network and enter the password
+6. After successful connection, the device will display "WiFi Connected!" followed by the scoreboard website URL
 ### Web Interface
 Access the web interface by navigating to the device's IP address in a browser or accessing http://scoreboard.local.
 

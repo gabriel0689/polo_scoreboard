@@ -22,7 +22,7 @@ bool displayingWebsiteURL = false;
 unsigned long lastScoreboardUpdate = 0;
 const unsigned long SCOREBOARD_UPDATE_INTERVAL = 5000; // 5 seconds
 
-
+bool inConfigPortalMode = false;
 
 void setup() {
   Serial.begin(115200);
@@ -41,6 +41,13 @@ void setup() {
 }
 
 void loop() {
+  // Check if in config portal mode
+  if (inConfigPortalMode) {
+    // Don't do anything that would override the AP display
+    delay(100);
+    return;
+  }
+
   // System initialization phase
   if (!systemInitialized) {
     // First, ensure WiFi is connected
@@ -68,11 +75,9 @@ void loop() {
     displayMessage("System Ready!");
     delay(1000);
 
-        // Show the website URL screen after initialization
+    // Show the website URL screen after initialization
     displayWebsiteURL();
     displayingWebsiteURL = true;
-
-
     return;
   }
   
@@ -83,46 +88,43 @@ void loop() {
     return;
   }
 
-
   static unsigned long lastUpdateTime = 0;
   static unsigned long lastBaudCheck = 0;
   static unsigned long lastResetCheck = 0;
+  unsigned long currentMillis = millis();
 
   // Periodic state broadcast
-  if (millis() - lastUpdateTime > 30000) { // Every 30 seconds
+  if (currentMillis - lastUpdateTime > 30000) { // Every 30 seconds
     serialHandler.sendCurrentState();
-    lastUpdateTime = millis();
+    lastUpdateTime = currentMillis;
   }
 
   // Baud rate checking (less frequent)
-  if (millis() - lastBaudCheck > 60000) { // Every 60 seconds
+  if (currentMillis - lastBaudCheck > 60000) { // Every 60 seconds
     serialHandler.detectBaudRate();
-    lastBaudCheck = millis();
+    lastBaudCheck = currentMillis;
   }
 
   // Reset Serial after extended garbled data (failsafe)
-  if (millis() - lastResetCheck > 300000) { // Every 5 minutes
+  if (currentMillis - lastResetCheck > 300000) { // Every 5 minutes
     if (!serialHandler.hasReceivedValidData(180000)) { // No valid data for 3 minutes
       if (serialHandler.getDebug()) {
         serialHandler.debugWS("No valid data for extended period - resetting serial");
       }
       serialHandler.begin(); // Reinitialize the serial connection
     }
-    lastResetCheck = millis();
+    lastResetCheck = currentMillis;
   }
+
+  // Update scoreboard display if active
   if (displayingScoreboard) {
-    unsigned long currentMillis = millis();
     if (currentMillis - lastScoreboardUpdate >= SCOREBOARD_UPDATE_INTERVAL) {
       displayScoreData();
       lastScoreboardUpdate = currentMillis;
     }
   }
 
-
-
   buttonHandler.update();
-
-
   serialHandler.handleData();
   cleanupWebSocket();
   delay(10);
@@ -290,4 +292,45 @@ void displayWebsiteURL() {
   tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
   tft.drawString("Network: " + WiFi.SSID(), tft.width()/2, tft.height() - 30);
   tft.drawString("Press button to view scores", tft.width()/2, tft.height() - 15);
+}
+
+// ...existing code...
+
+void displayAPInfo(const String& ssid, const String& password) {
+  // Clear screen
+  tft.fillScreen(TFT_BLACK);
+  
+  // Set text properties
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.setTextDatum(TC_DATUM); // Top-center alignment
+  
+  // Display header
+  tft.setTextSize(2);
+  tft.drawString("WIFI SETUP", tft.width()/2, 20);
+  
+  // Display instructions
+  tft.setTextSize(1);
+  tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+  tft.drawString("Connect to this WiFi network:", tft.width()/2, 55);
+  
+  // Draw AP info
+  tft.setTextDatum(MC_DATUM); // Middle-center alignment
+  tft.setTextSize(2);
+  tft.setTextColor(TFT_CYAN, TFT_BLACK);
+  tft.drawString(ssid, tft.width()/2, tft.height()/2 - 10);
+  
+  // Password
+  tft.setTextSize(1);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.drawString("Password:", tft.width()/2, tft.height()/2 + 20);
+  
+  tft.setTextSize(2);
+  tft.setTextColor(TFT_GREEN, TFT_BLACK);
+  tft.drawString(password, tft.width()/2, tft.height()/2 + 40);
+  
+  // Footer
+  tft.setTextSize(1);
+  tft.setTextDatum(BC_DATUM); // Bottom-center
+  tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
+  tft.drawString("Then visit 192.168.4.1 in your browser", tft.width()/2, tft.height() - 15);
 }
