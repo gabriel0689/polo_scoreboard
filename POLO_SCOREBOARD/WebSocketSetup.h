@@ -94,13 +94,16 @@ void setupWebSocket() {
     if (MDNS.begin("scoreboard")) {
         Serial.println("mDNS responder started");
     } else {
-        Serial.println("Error setting up mDNS responder.");
+        Serial.println("Error starting mDNS");
+        // Try again
+        delay(1000);
+        MDNS.begin("scoreboard");
     }
 
     // Attach WebSocket handler
     ws.onEvent(onEvent);
     server.addHandler(&ws);
-
+    MDNS.addService("http", "tcp", 80);
     // Setup web routes
     setupWebRoutes();
 

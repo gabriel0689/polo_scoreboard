@@ -58,10 +58,15 @@ void loop() {
         return; // Try again next loop iteration
       }
       displayMessage("WiFi Connected!");
+      delay(1000); // Give WiFi time to stabilize
+
     }
     
     // Now that WiFi is connected, set up WebSocket
+    displayMessage("Starting WebSocket...");
     setupWebSocket();
+    delay(2000); // Add delay to let the WebSocket server initialize properly
+    
     
     // Finally, initialize serial
     if (!serialHandler.begin()) {
@@ -262,6 +267,14 @@ void displayScoreData() {
                  "  Channel: " + String(serialHandler.getChannel()),
                  tft.width()/2, tft.height() - 5);
 }
+
+bool serverIsRunning() {
+  // Simple check to see if the server is responding
+  // Could use a more robust method if needed
+  return WiFi.status() == WL_CONNECTED && systemInitialized;
+}
+
+
 void displayWebsiteURL() {
   // Clear screen
   tft.fillScreen(TFT_BLACK);
@@ -274,19 +287,27 @@ void displayWebsiteURL() {
   tft.setTextSize(2);
   tft.drawString("SCOREBOARD URL", tft.width()/2, 30);
   
+  // Check server status
+  bool isRunning = serverIsRunning();
+  
   // Display URL with QR code instructions
   tft.setTextSize(1);
-  tft.setTextColor(TFT_CYAN, TFT_BLACK);
+  tft.setTextColor(isRunning ? TFT_CYAN : TFT_RED, TFT_BLACK);
   
-  // // Get IP address
+  // Get IP address
   String url = "http://scoreboard.local";
   
   // Draw the URL
   tft.drawString(url, tft.width()/2, tft.height()/2);
   
+  // Connection status
+  tft.setTextColor(isRunning ? TFT_GREEN : TFT_RED, TFT_BLACK);
+  tft.drawString(isRunning ? "Server Online" : "Server Starting...", 
+                tft.width()/2, tft.height()/2 + 20);
+  
   // Draw instructions
   tft.setTextColor(TFT_YELLOW, TFT_BLACK);
-  tft.drawString("Connect to view scoreboard", tft.width()/2, tft.height()/2 + 30);
+  tft.drawString("Connect to view scoreboard", tft.width()/2, tft.height()/2 + 40);
   
   // Draw network info
   tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
@@ -294,7 +315,6 @@ void displayWebsiteURL() {
   tft.drawString("Press button to view scores", tft.width()/2, tft.height() - 15);
 }
 
-// ...existing code...
 
 void displayAPInfo(const String& ssid, const String& password) {
   // Clear screen
