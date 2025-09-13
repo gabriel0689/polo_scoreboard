@@ -1,0 +1,227 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Scoreboard Display</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 0; 
+            background: #1a1a1a; 
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        .nav { 
+            background: #333;
+            padding: 10px 20px;
+        }
+        .nav a { 
+            margin-right: 15px; 
+            color: #4CAF50; 
+            text-decoration: none;
+            font-weight: bold;
+        }
+        .scoreboard {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            flex-grow: 1;
+            padding: 20px;
+        }
+        .time {
+            font-size: 8vw;
+            font-weight: bold;
+            margin-bottom: 20px;
+            font-family: 'Orbitron', monospace;
+            color: #ff0;
+            letter-spacing: 0.05em;
+            text-shadow: none !important;
+        }
+        .score-table {
+            border-collapse: collapse;
+            width: 80%;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .score-table th {
+            font-size: 2vw;
+            padding: 10px;
+            text-align: center;
+            background-color: #333;
+        }
+        .score-table td {
+            font-size: 10vw;
+            padding: 20px;
+            text-align: center;
+            font-weight: bold;
+            font-family: 'Orbitron', sans-serif;
+            letter-spacing: 0.05em;
+        }
+        .home { 
+            color: #0cf;
+            text-shadow: none !important
+        }
+        .away { 
+            color: #f80; 
+            text-shadow: none !important;
+        }
+        .status {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            color: #888;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .disconnected { color: #f44; }
+        
+        #port-select {
+            position: fixed;
+            top: 60px;
+            right: 20px;
+            background: #333;
+            padding: 5px 10px;
+            border-radius: 5px;
+            z-index: 10;
+        }
+        select {
+            background: #222;
+            color: #fff;
+            border: 1px solid #444;
+            padding: 5px;
+            margin-right: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="nav">
+        <a href="/">Scoreboard</a>
+        <a href="/debug">Debug</a>
+    </div>
+
+    <div id="port-select">
+        <select id="port-list">
+            <option value="">Select Port</option>
+        </select>
+    <button onclick="connectToPort()">Connect</button>
+    <button onclick="scanPorts()">Scan Ports</button>
+    </div>
+    
+    <div class="scoreboard">
+        <div class="time" id="time">00:00</div>
+        <table class="score-table">
+            <tr>
+                <th>HOME</th>
+                <th>AWAY</th>
+            </tr>
+            <tr>
+                <td class="home" id="home">0</td>
+                <td class="away" id="away">0</td>
+            </tr>
+        </table>
+    </div>
+    <!--
+    <div id="debug-console" style="width:80%;max-width:800px;margin:40px auto 0 auto;background:#111;color:#0f0;padding:10px;font-family:monospace;font-size:14px;overflow-y:auto;height:200px;border:1px solid #333;">
+        <b>Debug Console</b>
+    </div>
+    -->
+    
+    <div id="status" class="status">Not connected</div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+        const socket = io();
+        const timeDisplay = document.getElementById('time');
+        const homeDisplay = document.getElementById('home');
+        const awayDisplay = document.getElementById('away');
+    const statusDisplay = document.getElementById('status');
+    const debugConsole = document.getElementById('debug-console');
+        function appendDebug(message, type) {
+            const timestamp = new Date().toLocaleTimeString();
+            const div = document.createElement('div');
+            div.textContent = `[${timestamp}] ${message}`;
+            if (type) div.className = type;
+            debugConsole.appendChild(div);
+            debugConsole.scrollTop = debugConsole.scrollHeight;
+        }
+        
+        // Socket.IO event handling
+        socket.on('connect', () => {
+            statusDisplay.textContent = 'Connected to server';
+            statusDisplay.classList.remove('disconnected');
+            scanPorts();
+        });
+        
+        socket.on('disconnect', () => {
+            statusDisplay.textContent = 'Disconnected from server';
+            statusDisplay.classList.add('disconnected');
+        });
+        
+        socket.on('scoreboard_data', (data) => {
+            if (data.time) timeDisplay.textContent = data.time;
+            if (data.home) homeDisplay.textContent = data.home;
+            if (data.away) awayDisplay.textContent = data.away;
+        });
+
+        socket.on('debug_data', (data) => {
+            appendDebug(data.message, data.type || 'info');
+        });
+
+        socket.on('raw_data', (data) => {
+            appendDebug(`Raw data received: ${data.data}`, 'raw');
+        });
+        
+        socket.on('status_update', (data) => {
+            statusDisplay.textContent = data.message;
+            if (data.connected) {
+                statusDisplay.classList.remove('disconnected');
+            } else {
+                statusDisplay.classList.add('disconnected');
+            }
+        });
+        
+        socket.on('port_list', (data) => {
+            const portSelect = document.getElementById('port-list');
+            portSelect.innerHTML = '<option value="">Select Port</option>';
+            
+            data.ports.forEach(port => {
+                const option = document.createElement('option');
+                option.value = port.name;
+                option.textContent = port.name + (port.description ? ` (${port.description})` : '');
+                portSelect.appendChild(option);
+            });
+            
+            if (data.current_port) {
+                Array.from(portSelect.options).forEach(option => {
+                    if (option.value === data.current_port) {
+                        option.selected = true;
+                    }
+                });
+            }
+        });
+        
+        function connectToPort() {
+            const portSelect = document.getElementById('port-list');
+            const selectedPort = portSelect.value;
+            if (selectedPort) {
+                socket.emit('connect_port', { port: selectedPort });
+                statusDisplay.textContent = 'Connecting to ' + selectedPort + '...';
+            } else {
+                alert('Please select a port first');
+            }
+        }
+
+        function scanPorts() {
+            socket.emit('scan_ports');
+            statusDisplay.textContent = 'Scanning for ports...';
+        }
+    </script>
+</body>
+</html>
+    

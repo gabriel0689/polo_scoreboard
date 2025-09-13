@@ -70,8 +70,10 @@ def create_template_directory():
     if not os.path.exists('templates'):
         os.makedirs('templates')
     
-    # Create index.html
-    index_html = '''
+    # Only create index.html if it does not exist
+    index_path = os.path.join('templates', 'index.html')
+    if not os.path.exists(index_path):
+        index_html = '''
 <!DOCTYPE html>
 <html>
 <head>
@@ -89,13 +91,21 @@ def create_template_directory():
             flex-direction: column;
             height: 100vh;
         }
+        .footer {
+            text-align: center;
+            padding: 10px;
+            margin-top: 20px;
+            font-size: 0.8em;
+            color: #777;
+            border-top: 1px solid #333;
+        }
         .nav { 
             background: #333;
             padding: 10px 20px;
         }
         .nav a { 
             margin-right: 15px; 
-            color: #4CAF50; 
+            color: #fff; 
             text-decoration: none;
             font-weight: bold;
         }
@@ -109,12 +119,12 @@ def create_template_directory():
         }
         .time {
             font-size: 8vw;
-            font-weight: bold;
+            font-weight: 600;
             margin-bottom: 20px;
             font-family: 'Orbitron', monospace;
-            color: #ff0;
+            color: #ffd700;
             letter-spacing: 0.05em;
-            text-shadow: 0 0 10px rgba(255, 255, 0, 0.5);
+            text-shadow: none !important;
         }
         .score-table {
             border-collapse: collapse;
@@ -138,11 +148,9 @@ def create_template_directory():
         }
         .home { 
             color: #0cf;
-            text-shadow: 0 0 10px rgba(0, 204, 255, 0.5);
         }
         .away { 
             color: #f80; 
-            text-shadow: 0 0 10px rgba(255, 136, 0, 0.5);
         }
         .status {
             position: fixed;
@@ -153,23 +161,6 @@ def create_template_directory():
             cursor: pointer;
         }
         .disconnected { color: #f44; }
-        
-        #port-select {
-            position: fixed;
-            top: 60px;
-            right: 20px;
-            background: #333;
-            padding: 5px 10px;
-            border-radius: 5px;
-            z-index: 10;
-        }
-        select {
-            background: #222;
-            color: #fff;
-            border: 1px solid #444;
-            padding: 5px;
-            margin-right: 5px;
-        }
     </style>
 </head>
 <body>
@@ -177,15 +168,6 @@ def create_template_directory():
         <a href="/">Scoreboard</a>
         <a href="/debug">Debug</a>
     </div>
-
-    <div id="port-select">
-        <select id="port-list">
-            <option value="">Select Port</option>
-        </select>
-        <button onclick="connectToPort()">Connect</button>
-        <button onclick="scanPorts()">Scan Ports</button>
-    </div>
-    
     <div class="scoreboard">
         <div class="time" id="time">00:00</div>
         <table class="score-table">
@@ -199,9 +181,11 @@ def create_template_directory():
             </tr>
         </table>
     </div>
-    
     <div id="status" class="status">Not connected</div>
-
+    <div class="footer">Made with love by Face Cage CO. <span id="currentYear"></span></div>
+    <script>
+        document.getElementById('currentYear').textContent = new Date().getFullYear();
+    </script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script>
         const socket = io();
@@ -209,25 +193,11 @@ def create_template_directory():
         const homeDisplay = document.getElementById('home');
         const awayDisplay = document.getElementById('away');
         const statusDisplay = document.getElementById('status');
-        
-        // Socket.IO event handling
-        socket.on('connect', () => {
-            statusDisplay.textContent = 'Connected to server';
-            statusDisplay.classList.remove('disconnected');
-            scanPorts();
-        });
-        
-        socket.on('disconnect', () => {
-            statusDisplay.textContent = 'Disconnected from server';
-            statusDisplay.classList.add('disconnected');
-        });
-        
         socket.on('scoreboard_data', (data) => {
             if (data.time) timeDisplay.textContent = data.time;
             if (data.home) homeDisplay.textContent = data.home;
             if (data.away) awayDisplay.textContent = data.away;
         });
-        
         socket.on('status_update', (data) => {
             statusDisplay.textContent = data.message;
             if (data.connected) {
@@ -236,49 +206,17 @@ def create_template_directory():
                 statusDisplay.classList.add('disconnected');
             }
         });
-        
-        socket.on('port_list', (data) => {
-            const portSelect = document.getElementById('port-list');
-            portSelect.innerHTML = '<option value="">Select Port</option>';
-            
-            data.ports.forEach(port => {
-                const option = document.createElement('option');
-                option.value = port.name;
-                option.textContent = port.name + (port.description ? ` (${port.description})` : '');
-                portSelect.appendChild(option);
-            });
-            
-            if (data.current_port) {
-                Array.from(portSelect.options).forEach(option => {
-                    if (option.value === data.current_port) {
-                        option.selected = true;
-                    }
-                });
-            }
-        });
-        
-        function connectToPort() {
-            const portSelect = document.getElementById('port-list');
-            const selectedPort = portSelect.value;
-            
-            if (selectedPort) {
-                socket.emit('connect_port', { port: selectedPort });
-                statusDisplay.textContent = 'Connecting to ' + selectedPort + '...';
-            } else {
-                alert('Please select a port first');
-            }
-        }
-        
-        function scanPorts() {
-            socket.emit('scan_ports');
-            statusDisplay.textContent = 'Scanning for ports...';
-        }
     </script>
 </body>
 </html>
-    '''
-    
-    debug_html = '''
+        '''
+        with open(index_path, 'w') as f:
+            f.write(index_html)
+
+    # Only create debug.html if it does not exist
+    debug_path = os.path.join('templates', 'debug.html')
+    if not os.path.exists(debug_path):
+        debug_html = '''
 <!DOCTYPE html>
 <html>
 <head>
@@ -298,12 +236,12 @@ def create_template_directory():
             color: #0f0;
         }
         .nav { margin-bottom: 20px; }
-        .nav a { margin-right: 10px; color: #4CAF50; text-decoration: none; }
+        .nav a { margin-right: 10px; color: #fff; text-decoration: none; font-weight: bold; }
         .controls { margin: 10px 0; }
-        .score { color: #00ffff; font-weight: bold; font-size: 1.2em; }
-        .error { color: #ff4444; }
-        .success { color: #4CAF50; }
-        .info { color: #00ffff; }
+    .score { color: #00ffff; font-weight: bold; font-size: 1.2em; }
+    .error { color: #ff4444; }
+    .success { color: #4CAF50; }
+    .info { color: #00ffff; }
         button { 
             background: #333; 
             color: #fff; 
@@ -325,46 +263,36 @@ def create_template_directory():
         <label><input type="checkbox" id="autoscroll" checked> Auto-scroll</label>
     </div>
     <div id="serialData"></div>
-    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script>
         const socket = io();
         const serialDiv = document.getElementById('serialData');
         const autoscroll = document.getElementById('autoscroll');
-        
         socket.on('debug_data', (data) => {
             appendMessage(data.message, data.type || 'info');
         });
-        
         socket.on('raw_data', (data) => {
             appendMessage(`Raw data received: ${data.data}`, 'raw');
         });
-        
         function appendMessage(message, className) {
             var timestamp = new Date().toLocaleTimeString();
             var div = document.createElement('div');
             div.className = className;
             div.textContent = `[${timestamp}] ${message}`;
             serialDiv.appendChild(div);
-            
             if (autoscroll.checked) {
                 serialDiv.scrollTop = serialDiv.scrollHeight;
             }
         }
-        
         function clearData() {
             serialDiv.innerHTML = '';
         }
     </script>
 </body>
 </html>
-    '''
-    
-    with open(os.path.join('templates', 'index.html'), 'w') as f:
-        f.write(index_html)
-    
-    with open(os.path.join('templates', 'debug.html'), 'w') as f:
-        f.write(debug_html)
+        '''
+        with open(debug_path, 'w') as f:
+            f.write(debug_html)
 
 @app.route('/')
 def index():
@@ -407,7 +335,7 @@ def handle_connect_port(data):
     
     if port:
         try:
-            ser = serial.Serial(port, baudrate=115200, timeout=1)
+            ser = serial.Serial(port, baudrate=9600, timeout=1)
             connected = True
             socketio.emit('status_update', {
                 'connected': True,
@@ -442,86 +370,78 @@ def list_serial_ports():
 def parse_scoreboard_data(data):
     """Parse the raw data from the scoreboard without hardcoding markers"""
     try:
-        # First try JSON format
-        try:
-            json_data = json.loads(data)
-            if 'time' in json_data and 'home' in json_data and 'away' in json_data:
-                return json_data
-        except:
-            pass
-        
-        # Use regex to find the pattern \d[DT]\d which indicates start of a command
-        # This handles any channel number
-        match = re.search(r'(\d[DT]\d)(\d{2})(\d{2})(\d{2})(\d{2})', data)
-        if match:
-            socketio.emit('debug_data', {
-                'message': f"Found potential scoreboard data pattern: {match.group(0)}",
-                'type': 'info'
-            })
-            
-            # Extract all groups for debug
-            command = match.group(1)  # e.g., 1D2, 2T3, etc.
-            home_score = int(match.group(2))
-            away_score = int(match.group(3))
-            seconds = int(match.group(4))
-            minutes = int(match.group(5))
-            
-            # Debug each extracted part
-            socketio.emit('debug_data', {
-                'message': f"Parsed - Command: {command}, Home: {home_score}, Away: {away_score}, Seconds: {seconds}, Minutes: {minutes}",
-                'type': 'info'
-            })
-            
+        # Remove non-printable characters from the start
+        clean = ''.join(c for c in data if c.isprintable())
+        # Find the first digit, which should be the channel
+        for i, c in enumerate(clean):
+            if c.isdigit():
+                clean = clean[i:]
+                break
+        # Now expect exactly 13 characters
+        if len(clean) >= 13:
+            channel = clean[0]
+            device_status = clean[1:3]
+            minutes = clean[3:5]
+            seconds = clean[5:7]
+            milliseconds = clean[7:9]
+            home_score = clean[9:11]
+            away_score = clean[11:13]
             return {
-                "time": f"{minutes:02d}:{seconds:02d}",
-                "home": str(home_score),
-                "away": str(away_score)
+                "time": f"{minutes}:{seconds}",
+                "home": str(int(home_score)),
+                "away": str(int(away_score))
             }
-            
-        # If no match was found, log it
-        socketio.emit('debug_data', {
-            'message': f"No pattern match found in: {data}",
-            'type': 'warning'
-        })
-        
+        else:
+            # Log malformed data
+            log_message = f"Malformed data: '{data}' (cleaned: '{clean}') at {time.strftime('%Y-%m-%d %H:%M:%S')}\n"
+            with open("scoreboard_malformed.log", "a") as log_file:
+                log_file.write(log_message)
+            socketio.emit('debug_data', {
+                'message': f"Malformed data logged: {data}",
+                'type': 'warning'
+            })
     except Exception as e:
+        log_message = f"Error parsing data: '{data}' | Exception: {str(e)} at {time.strftime('%Y-%m-%d %H:%M:%S')}\n"
+        with open("scoreboard_malformed.log", "a") as log_file:
+            log_file.write(log_message)
         socketio.emit('debug_data', {
-            'message': f"Error parsing data: {str(e)}",
+            'message': f"Error parsing data and logged: {str(e)}",
             'type': 'error'
         })
-    
-    # Return None if parsing failed
     return None
 
 def serial_reader():
     """Background thread for reading from serial port"""
     global last_data
-    
+    if 'DEBUG_PRINT' in globals() and DEBUG_PRINT:
+        print("[DEBUG] Serial reader thread started")
     socketio.emit('debug_data', {
         'message': "Serial reader thread started",
         'type': 'info'
     })
-    
     buffer = ""
-    
     while connected and ser:
         try:
             # Read from serial port with timeout
             if ser.in_waiting > 0:
                 new_data = ser.read(ser.in_waiting).decode('utf-8', errors='ignore')
+                if 'DEBUG_PRINT' in globals() and DEBUG_PRINT:
+                    print(f"[DEBUG] Read from serial: {repr(new_data)}")
                 buffer += new_data
-                
-                # Process complete lines
-                if '\n' in buffer:
-                    lines = buffer.split('\n')
+                # Process complete lines (split on both \n and \t)
+                import re
+                # Split on either newline or tab
+                if re.search(r'[\n\t]', buffer):
+                    # Use regex split to handle both delimiters
+                    lines = re.split(r'[\n\t]', buffer)
                     buffer = lines[-1]  # Keep the incomplete line
-                    
                     for line in lines[:-1]:  # Process complete lines
                         line = line.strip()
                         if line:
+                            if 'DEBUG_PRINT' in globals() and DEBUG_PRINT:
+                                print(f"[DEBUG] Emitting raw_data: {line}")
                             # Emit raw data
                             socketio.emit('raw_data', {'data': line})
-                            
                             # Try to parse
                             parsed = parse_scoreboard_data(line)
                             if parsed:
@@ -534,8 +454,9 @@ def serial_reader():
             else:
                 # No data available, sleep briefly to avoid high CPU usage
                 time.sleep(0.1)
-                
         except Exception as e:
+            if 'DEBUG_PRINT' in globals() and DEBUG_PRINT:
+                print(f"[ERROR] Serial read error: {str(e)}")
             socketio.emit('debug_data', {
                 'message': f"Serial read error: {str(e)}",
                 'type': 'error'
@@ -547,8 +468,11 @@ def main():
     parser = argparse.ArgumentParser(description='Scoreboard Web Interface')
     parser.add_argument('--port', type=str, help='Serial port to connect to')
     parser.add_argument('--host', type=str, default='0.0.0.0', help='Host to run the web server on')
-    parser.add_argument('--web-port', type=int, default=5000, help='Port to run the web server on')
+    parser.add_argument('--web-port', type=int, default=5050, help='Port to run the web server on')
+    parser.add_argument('--debug', action='store_true', help='Enable debug print output')
     args = parser.parse_args()
+    global DEBUG_PRINT
+    DEBUG_PRINT = args.debug
     
     create_template_directory()
     
@@ -556,13 +480,15 @@ def main():
     if args.port:
         global ser, connected
         try:
-            ser = serial.Serial(args.port, baudrate=115200, timeout=1)
+            ser = serial.Serial(args.port, baudrate=9600, timeout=1)
             connected = True
-            print(f"Connected to port {args.port}")
+            if args.debug:
+                print(f"Connected to port {args.port}")
             # Start reading thread
             threading.Thread(target=serial_reader, daemon=True).start()
         except Exception as e:
-            print(f"Failed to connect to port {args.port}: {str(e)}")
+            if args.debug:
+                print(f"Failed to connect to port {args.port}: {str(e)}")
     
     # Open web browser after a delay
     def open_browser():
@@ -572,7 +498,8 @@ def main():
     threading.Thread(target=open_browser, daemon=True).start()
     
     # Start the Flask-SocketIO server
-    print(f"Starting web server at http://{args.host}:{args.web_port}")
+    if args.debug:
+        print(f"Starting web server at http://{args.host}:{args.web_port}")
     socketio.run(app, host=args.host, port=args.web_port, debug=False, allow_unsafe_werkzeug=True)
 
 if __name__ == '__main__':
