@@ -51,8 +51,15 @@ from flask import Flask, render_template, send_from_directory
 from flask_socketio import SocketIO
 
 # Configure Flask app and SocketIO
+
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
+
+# Place all @app.route after app is defined
+@app.route('/settings')
+def settings():
+    global save_folder
+    return render_template('settings.html', save_folder=save_folder)
 
 # Global variables for data storage
 last_data = {
@@ -65,14 +72,106 @@ last_data = {
 ser = None
 connected = False
 
-def create_template_directory():
+# Folder to save .txt files
+save_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'scoreboardOutput')
+if not os.path.exists(save_folder):
+    os.makedirs(save_folder)
+
+def create_template_directory(force_rebuild=False):
+    # Create templates directory if needed
+    if not os.path.exists('templates'):
+        os.makedirs('templates')
+    # Always rebuild if force_rebuild is True, otherwise only if not exists
+    settings_path = os.path.join('templates', 'settings.html')
+    if force_rebuild or not os.path.exists(settings_path):
+        settings_html = '''
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Scoreboard Settings</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #1a1a1a; color: #fff; display: flex; flex-direction: column; height: 100vh; }
+        .footer { text-align: center; padding: 10px; margin-top: 20px; font-size: 0.8em; color: #777; border-top: 1px solid #333; }
+        .nav { background: #333; padding: 10px 20px; display: flex; align-items: center; }
+        .nav a { margin-right: 15px; color: #0f0; text-decoration: none; font-weight: bold; }
+        .serial-controls { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+        .serial-controls select, .serial-controls button { font-size: 1em; padding: 2px 6px; }
+        .container { max-width: 600px; margin: 40px auto; background: #222; padding: 30px 30px 20px 30px; border-radius: 8px; box-shadow: 0 2px 8px #0004; }
+        h2 { margin-top: 0; }
+        label { display: block; margin-bottom: 8px; font-weight: bold; }
+        input[type=text] { width: 100%; padding: 8px; font-size: 1em; margin-bottom: 12px; border-radius: 4px; border: 1px solid #444; background: #111; color: #fff; }
+        button { padding: 8px 18px; font-size: 1em; background: #333; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #444; }
+        .status { margin-top: 10px; font-size: 1em; }
+    </style>
+</head>
+<body>
+    <div class="nav">
+        <a href="/">Scoreboard</a>
+        <a href="/debug">Debug</a>
+        <a href="/settings">Settings</a>
+        <div class="serial-controls">
+            <select id="portSelect"></select>
+            <button onclick="connectPort()">Connect</button>
+            <button onclick="scanPorts()">Scan Ports</button>
+        </div>
+    </div>
+    <div class="container">
+        <h2>Preferences</h2>
+        <form id="folderForm" onsubmit="submitFolder(event)">
+            <label for="folderPath">Directory to write the files (.txt):</label>
+            <input type="text" id="folderPath" name="folderPath" placeholder="{{ save_folder }}">
+            <button type="submit">Set Folder</button>
+            <span id="folderStatus" class="status"></span>
+        </form>
+    </div>
+    <div class="footer">Made with love by Face Cage CO. <span id="currentYear"></span></div>
+    <script>document.getElementById('currentYear').textContent = new Date().getFullYear();</script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+        function submitFolder(e) {
+            e.preventDefault();
+            const folderPath = document.getElementById('folderPath').value;
+            fetch('/set_save_folder', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ folder: folderPath })
+            })
+            .then(res => res.json())
+            .then(data => {
+                const status = document.getElementById('folderStatus');
+                status.textContent = data.message;
+                status.style.color = data.success ? '#0f0' : '#f44';
+            });
+        }
+        function scanPorts() { socket.emit('scan_ports'); }
+        function connectPort() { const port = document.getElementById('portSelect').value; if (port) socket.emit('connect_port', { port }); }
+        const socket = io();
+        const portSelect = document.getElementById('portSelect');
+        socket.on('port_list', data => {
+            portSelect.innerHTML = '';
+            data.ports.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.name; opt.textContent = p.name + (p.description ? ' - ' + p.description : '');
+                if (data.current_port === p.name) opt.selected = true;
+                portSelect.appendChild(opt);
+            });
+        });
+        scanPorts();
+    </script>
+</body>
+</html>
+        '''
+        with open(settings_path, 'w') as f:
+            f.write(settings_html)
     """Create templates directory and HTML files if they don't exist"""
     if not os.path.exists('templates'):
         os.makedirs('templates')
     
     # Only create index.html if it does not exist
     index_path = os.path.join('templates', 'index.html')
-    if not os.path.exists(index_path):
+    if force_rebuild or not os.path.exists(index_path):
         index_html = '''
 <!DOCTYPE html>
 <html>
@@ -81,111 +180,58 @@ def create_template_directory():
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
     <style>
-        body { 
-            font-family: Arial, sans-serif; 
-            margin: 0; 
-            padding: 0; 
-            background: #1a1a1a; 
-            color: #fff;
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-        }
-        .footer {
-            text-align: center;
-            padding: 10px;
-            margin-top: 20px;
-            font-size: 0.8em;
-            color: #777;
-            border-top: 1px solid #333;
-        }
-        .nav { 
-            background: #333;
-            padding: 10px 20px;
-        }
-        .nav a { 
-            margin-right: 15px; 
-            color: #fff; 
-            text-decoration: none;
-            font-weight: bold;
-        }
-        .scoreboard {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            flex-grow: 1;
-            padding: 20px;
-        }
-        .time {
-            font-size: 8vw;
-            font-weight: 600;
-            margin-bottom: 20px;
-            font-family: 'Orbitron', monospace;
-            color: #ffd700;
-            letter-spacing: 0.05em;
-            text-shadow: none !important;
-        }
-        .score-table {
-            border-collapse: collapse;
-            width: 80%;
-            max-width: 600px;
-            margin: 0 auto;
-        }
-        .score-table th {
-            font-size: 2vw;
-            padding: 10px;
-            text-align: center;
-            background-color: #333;
-        }
-        .score-table td {
-            font-size: 10vw;
-            padding: 20px;
-            text-align: center;
-            font-weight: bold;
-            font-family: 'Orbitron', sans-serif;
-            letter-spacing: 0.05em;
-        }
-        .home { 
-            color: #0cf;
-        }
-        .away { 
-            color: #f80; 
-        }
-        .status {
-            position: fixed;
-            bottom: 10px;
-            right: 10px;
-            color: #888;
-            font-size: 12px;
-            cursor: pointer;
-        }
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #1a1a1a; color: #fff; display: flex; flex-direction: column; height: 100vh; }
+        .footer { text-align: center; padding: 10px; margin-top: 20px; font-size: 0.8em; color: #777; border-top: 1px solid #333; }
+        .nav { background: #333; padding: 10px 20px; display: flex; align-items: center; }
+        .nav a { margin-right: 15px; color: #0f0; text-decoration: none; font-weight: bold; }
+        .serial-controls { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+        .serial-controls select, .serial-controls button { font-size: 1em; padding: 2px 6px; }
+        .scoreboard { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+        .time { font-size: 8vw; font-weight: 600; margin-bottom: 20px; font-family: 'Orbitron', monospace; color: #ffd700; letter-spacing: 0.05em; text-shadow: none !important; }
+        .score-table { border-collapse: collapse; width: 80%; max-width: 600px; margin: 0 auto; }
+        .score-table th { font-size: 2vw; padding: 10px; text-align: center; background-color: #333; }
+        .score-table td { font-size: 10vw; padding: 20px; text-align: center; font-weight: bold; font-family: 'Orbitron', sans-serif; letter-spacing: 0.05em; }
+        .home { color: #0cf; }
+        .away { color: #f80; }
+        .status { position: fixed; bottom: 10px; right: 10px; color: #888; font-size: 12px; cursor: pointer; }
         .disconnected { color: #f44; }
+        #nameFields{flex-grow: 1;}
+        button { background: #333; color: #fff; border: none; padding: 8px 16px; cursor: pointer; }
     </style>
 </head>
 <body>
     <div class="nav">
         <a href="/">Scoreboard</a>
         <a href="/debug">Debug</a>
+        <a href="/settings">Settings</a>
+        <div class="serial-controls">
+            <select id="portSelect"></select>
+            <button onclick="connectPort()">Connect</button>
+            <button onclick="scanPorts()">Scan Ports</button>
+        </div>
     </div>
     <div class="scoreboard">
         <div class="time" id="time">00:00</div>
         <table class="score-table">
-            <tr>
-                <th>HOME</th>
-                <th>AWAY</th>
-            </tr>
-            <tr>
-                <td class="home" id="home">0</td>
-                <td class="away" id="away">0</td>
-            </tr>
+            <tr><th id="homeName">HOME</th><th id="awayName">AWAY</th></tr>
+            <tr><td class="home" id="home">0</td><td class="away" id="away">0</td></tr>
         </table>
+    </div>
+    <div id="nameFields" style="display: flex; justify-content: center; margin: 32px 0 0 0; width: 100%;">
+        <div style="display: flex; flex-direction: row; justify-content: center; width: 80%; max-width: 600px; gap: 40px;">
+            <div style="flex: 1; display: flex; flex-direction: column; align-items: stretch;">
+                <input type="text" id="homeNameInput" placeholder="Home Name" style="text-align: center; font-size: 2vw; margin-bottom: 10px; width: 100%; height: 50px; border-radius: 6px; border: 1.5px solid #444; background: #111; color: #0cf; font-weight: bold;">
+                <button type="button" onclick="submitName('home')" style="background: #0cf; color: #111; font-weight: bold; border: none; border-radius: 6px; height: 50px; font-size: 2vw; width: 100%; cursor: pointer;">Set Home</button>
+            </div>
+            <div style="flex: 1; display: flex; flex-direction: column; align-items: stretch;">
+                <input type="text" id="awayNameInput" placeholder="Away Name" style="text-align: center; font-size: 2vw; margin-bottom: 10px; width: 100%; height: 50px; border-radius: 6px; border: 1.5px solid #444; background: #111; color: #f80; font-weight: bold;">
+                <button type="button" onclick="submitName('away')" style="background: #f80; color: #111; font-weight: bold; border: none; border-radius: 6px; height: 50px; font-size: 2vw; width: 100%; cursor: pointer;">Set Away</button>
+            </div>
+        </div>
     </div>
     <div id="status" class="status">Not connected</div>
     <div class="footer">Made with love by Face Cage CO. <span id="currentYear"></span></div>
-    <script>
-        document.getElementById('currentYear').textContent = new Date().getFullYear();
-    </script>
+    <script>document.getElementById('currentYear').textContent = new Date().getFullYear();</script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script>
         const socket = io();
@@ -193,19 +239,40 @@ def create_template_directory():
         const homeDisplay = document.getElementById('home');
         const awayDisplay = document.getElementById('away');
         const statusDisplay = document.getElementById('status');
-        socket.on('scoreboard_data', (data) => {
+        const portSelect = document.getElementById('portSelect');
+        function scanPorts() { socket.emit('scan_ports'); }
+        function connectPort() { const port = portSelect.value; if (port) socket.emit('connect_port', { port }); }
+        socket.on('port_list', data => {
+            portSelect.innerHTML = '';
+            data.ports.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.name; opt.textContent = p.name + (p.description ? ' - ' + p.description : '');
+                if (data.current_port === p.name) opt.selected = true;
+                portSelect.appendChild(opt);
+            });
+        });
+        socket.on('scoreboard_data', data => {
             if (data.time) timeDisplay.textContent = data.time;
             if (data.home) homeDisplay.textContent = data.home;
             if (data.away) awayDisplay.textContent = data.away;
+            if (data.home_name) document.getElementById('homeName').textContent = data.home_name;
+            if (data.away_name) document.getElementById('awayName').textContent = data.away_name;
         });
-        socket.on('status_update', (data) => {
-            statusDisplay.textContent = data.message;
-            if (data.connected) {
-                statusDisplay.classList.remove('disconnected');
-            } else {
-                statusDisplay.classList.add('disconnected');
+
+        function submitName(side) {
+            const input = side === 'home' ? document.getElementById('homeNameInput') : document.getElementById('awayNameInput');
+            const value = input.value.trim();
+            if (value) {
+                socket.emit('set_name', { side, value });
             }
+        }
+        socket.on('status_update', data => {
+            statusDisplay.textContent = data.message;
+            if (data.connected) statusDisplay.classList.remove('disconnected');
+            else statusDisplay.classList.add('disconnected');
         });
+        // Initial scan
+        scanPorts();
     </script>
 </body>
 </html>
@@ -215,7 +282,7 @@ def create_template_directory():
 
     # Only create debug.html if it does not exist
     debug_path = os.path.join('templates', 'debug.html')
-    if not os.path.exists(debug_path):
+    if force_rebuild or not os.path.exists(debug_path):
         debug_html = '''
 <!DOCTYPE html>
 <html>
@@ -223,32 +290,18 @@ def create_template_directory():
     <title>Scoreboard Debug</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; background: #1a1a1a; color: #fff; }
-        #serialData {
-            width: 100%;
-            height: 400px;
-            margin: 20px 0;
-            padding: 10px;
-            border: 1px solid #333;
-            overflow-y: scroll;
-            font-family: monospace;
-            background: #000;
-            color: #0f0;
-        }
-        .nav { margin-bottom: 20px; }
-        .nav a { margin-right: 10px; color: #fff; text-decoration: none; font-weight: bold; }
+        body { font-family: Arial, sans-serif; margin: 0px; background: #1a1a1a; color: #fff; }
+        #serialData { width: 100%; height: 400px; margin: 20px 0; padding: 10px; border: 1px solid #333; overflow-y: scroll; font-family: monospace; background: #000; color: #0f0; }
+        .nav { background: #333; padding: 10px 20px; display: flex; align-items: center; margin-bottom: 20px; }
+        .nav a { margin-right: 15px; color: #0f0; text-decoration: none; font-weight: bold; }
+        .serial-controls { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+        .serial-controls select, .serial-controls button { font-size: 1em; padding: 2px 6px; }
         .controls { margin: 10px 0; }
-    .score { color: #00ffff; font-weight: bold; font-size: 1.2em; }
-    .error { color: #ff4444; }
-    .success { color: #4CAF50; }
-    .info { color: #00ffff; }
-        button { 
-            background: #333; 
-            color: #fff; 
-            border: none; 
-            padding: 8px 16px;
-            cursor: pointer;
-        }
+        .score { color: #00ffff; font-weight: bold; font-size: 1.2em; }
+        .error { color: #ff4444; }
+        .success { color: #4CAF50; }
+        .info { color: #00ffff; }
+        button { background: #333; color: #fff; border: none; padding: 8px 16px; cursor: pointer; }
         button:hover { background: #444; }
     </style>
 </head>
@@ -256,6 +309,12 @@ def create_template_directory():
     <div class="nav">
         <a href="/">Scoreboard</a>
         <a href="/debug">Debug</a>
+        <a href="/settings">Settings</a>
+        <div class="serial-controls">
+            <select id="portSelect"></select>
+            <button onclick="connectPort()">Connect</button>
+            <button onclick="scanPorts()">Scan Ports</button>
+        </div>
     </div>
     <h1>Scoreboard Debug Monitor</h1>
     <div class="controls">
@@ -268,25 +327,31 @@ def create_template_directory():
         const socket = io();
         const serialDiv = document.getElementById('serialData');
         const autoscroll = document.getElementById('autoscroll');
-        socket.on('debug_data', (data) => {
-            appendMessage(data.message, data.type || 'info');
+        const portSelect = document.getElementById('portSelect');
+        function scanPorts() { socket.emit('scan_ports'); }
+        function connectPort() { const port = portSelect.value; if (port) socket.emit('connect_port', { port }); }
+        socket.on('port_list', data => {
+            portSelect.innerHTML = '';
+            data.ports.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.name; opt.textContent = p.name + (p.description ? ' - ' + p.description : '');
+                if (data.current_port === p.name) opt.selected = true;
+                portSelect.appendChild(opt);
+            });
         });
-        socket.on('raw_data', (data) => {
-            appendMessage(`Raw data received: ${data.data}`, 'raw');
-        });
+        socket.on('debug_data', data => { appendMessage(data.message, data.type || 'info'); });
+        socket.on('raw_data', data => { appendMessage(`Raw data received: ${data.data}`, 'raw'); });
         function appendMessage(message, className) {
             var timestamp = new Date().toLocaleTimeString();
             var div = document.createElement('div');
             div.className = className;
             div.textContent = `[${timestamp}] ${message}`;
             serialDiv.appendChild(div);
-            if (autoscroll.checked) {
-                serialDiv.scrollTop = serialDiv.scrollHeight;
-            }
+            if (autoscroll.checked) serialDiv.scrollTop = serialDiv.scrollHeight;
         }
-        function clearData() {
-            serialDiv.innerHTML = '';
-        }
+        function clearData() { serialDiv.innerHTML = ''; }
+        // Initial scan
+        scanPorts();
     </script>
 </body>
 </html>
@@ -470,11 +535,12 @@ def main():
     parser.add_argument('--host', type=str, default='0.0.0.0', help='Host to run the web server on')
     parser.add_argument('--web-port', type=int, default=5050, help='Port to run the web server on')
     parser.add_argument('--debug', action='store_true', help='Enable debug print output')
+    parser.add_argument('--rebuild-templates', action='store_true', help='Force rebuild of HTML templates even if they exist')
     args = parser.parse_args()
     global DEBUG_PRINT
     DEBUG_PRINT = args.debug
     
-    create_template_directory()
+    create_template_directory(force_rebuild=args.rebuild_templates)
     
     # Connect to serial port if specified
     if args.port:
