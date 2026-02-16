@@ -1,0 +1,79 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Scoreboard Settings</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #1a1a1a; color: #fff; display: flex; flex-direction: column; height: 100vh; }
+        .footer { text-align: center; padding: 10px; margin-top: 20px; font-size: 0.8em; color: #777; border-top: 1px solid #333; }
+        .nav { background: #333; padding: 10px 20px; display: flex; align-items: center; }
+        .nav a { margin-right: 15px; color: #0f0; text-decoration: none; font-weight: bold; }
+        .serial-controls { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+        .serial-controls select, .serial-controls button { font-size: 1em; padding: 2px 6px; }
+        .container { max-width: 600px; margin: 40px auto; background: #222; padding: 30px 30px 20px 30px; border-radius: 8px; box-shadow: 0 2px 8px #0004; }
+        h2 { margin-top: 0; }
+        label { display: block; margin-bottom: 8px; font-weight: bold; }
+        input[type=text] { width: 100%; padding: 8px; font-size: 1em; margin-bottom: 12px; border-radius: 4px; border: 1px solid #444; background: #111; color: #fff; }
+        button { padding: 8px 18px; font-size: 1em; background: #333; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #444; }
+        .status { margin-top: 10px; font-size: 1em; }
+    </style>
+</head>
+<body>
+    <div class="nav">
+        <a href="/">Scoreboard</a>
+        <a href="/debug">Debug</a>
+        <a href="/settings">Settings</a>
+        <div class="serial-controls">
+            <select id="portSelect"></select>
+            <button onclick="connectPort()">Connect</button>
+            <button onclick="scanPorts()">Scan Ports</button>
+        </div>
+    </div>
+    <div class="container">
+        <h2>Preferences</h2>
+        <form id="folderForm" onsubmit="submitFolder(event)">
+            <label for="folderPath">Directory to write the files (.txt):</label>
+            <input type="text" id="folderPath" name="folderPath" placeholder="{{ save_folder }}">
+            <button type="submit">Set Folder</button>
+            <span id="folderStatus" class="status"></span>
+        </form>
+    </div>
+    <div class="footer">Made with love by Face Cage CO. <span id="currentYear"></span></div>
+    <script>document.getElementById('currentYear').textContent = new Date().getFullYear();</script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+        function submitFolder(e) {
+            e.preventDefault();
+            const folderPath = document.getElementById('folderPath').value;
+            fetch('/set_save_folder', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ folder: folderPath })
+            })
+            .then(res => res.json())
+            .then(data => {
+                const status = document.getElementById('folderStatus');
+                status.textContent = data.message;
+                status.style.color = data.success ? '#0f0' : '#f44';
+            });
+        }
+        function scanPorts() { socket.emit('scan_ports'); }
+        function connectPort() { const port = document.getElementById('portSelect').value; if (port) socket.emit('connect_port', { port }); }
+        const socket = io();
+        const portSelect = document.getElementById('portSelect');
+        socket.on('port_list', data => {
+            portSelect.innerHTML = '';
+            data.ports.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.name; opt.textContent = p.name + (p.description ? ' - ' + p.description : '');
+                if (data.current_port === p.name) opt.selected = true;
+                portSelect.appendChild(opt);
+            });
+        });
+        scanPorts();
+    </script>
+</body>
+</html>
+        

@@ -1,0 +1,73 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Scoreboard Debug</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0px; background: #1a1a1a; color: #fff; }
+        #serialData { width: 100%; height: 400px; margin: 20px 0; padding: 10px; border: 1px solid #333; overflow-y: scroll; font-family: monospace; background: #000; color: #0f0; }
+        .nav { background: #333; padding: 10px 20px; display: flex; align-items: center; margin-bottom: 20px; }
+        .nav a { margin-right: 15px; color: #0f0; text-decoration: none; font-weight: bold; }
+        .serial-controls { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+        .serial-controls select, .serial-controls button { font-size: 1em; padding: 2px 6px; }
+        .controls { margin: 10px 0; }
+        .score { color: #00ffff; font-weight: bold; font-size: 1.2em; }
+        .error { color: #ff4444; }
+        .success { color: #4CAF50; }
+        .info { color: #00ffff; }
+        button { background: #333; color: #fff; border: none; padding: 8px 16px; cursor: pointer; }
+        button:hover { background: #444; }
+    </style>
+</head>
+<body>
+    <div class="nav">
+        <a href="/">Scoreboard</a>
+        <a href="/debug">Debug</a>
+        <a href="/settings">Settings</a>
+        <div class="serial-controls">
+            <select id="portSelect"></select>
+            <button onclick="connectPort()">Connect</button>
+            <button onclick="scanPorts()">Scan Ports</button>
+        </div>
+    </div>
+    <h1>Scoreboard Debug Monitor</h1>
+    <div class="controls">
+        <button onclick='clearData()'>Clear</button>
+        <label><input type="checkbox" id="autoscroll" checked> Auto-scroll</label>
+    </div>
+    <div id="serialData"></div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+        const socket = io();
+        const serialDiv = document.getElementById('serialData');
+        const autoscroll = document.getElementById('autoscroll');
+        const portSelect = document.getElementById('portSelect');
+        function scanPorts() { socket.emit('scan_ports'); }
+        function connectPort() { const port = portSelect.value; if (port) socket.emit('connect_port', { port }); }
+        socket.on('port_list', data => {
+            portSelect.innerHTML = '';
+            data.ports.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.name; opt.textContent = p.name + (p.description ? ' - ' + p.description : '');
+                if (data.current_port === p.name) opt.selected = true;
+                portSelect.appendChild(opt);
+            });
+        });
+        socket.on('debug_data', data => { appendMessage(data.message, data.type || 'info'); });
+        socket.on('raw_data', data => { appendMessage(`Raw data received: ${data.data}`, 'raw'); });
+        function appendMessage(message, className) {
+            var timestamp = new Date().toLocaleTimeString();
+            var div = document.createElement('div');
+            div.className = className;
+            div.textContent = `[${timestamp}] ${message}`;
+            serialDiv.appendChild(div);
+            if (autoscroll.checked) serialDiv.scrollTop = serialDiv.scrollHeight;
+        }
+        function clearData() { serialDiv.innerHTML = ''; }
+        // Initial scan
+        scanPorts();
+    </script>
+</body>
+</html>
+        
